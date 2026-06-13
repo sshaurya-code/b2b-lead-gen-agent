@@ -20,7 +20,7 @@ Discovery → Scraping → Enrichment → Signal Detection → Scoring → Data 
 | Scraping | `scraper.py` | Playwright + BeautifulSoup contact extraction, robots.txt, anti-bot |
 | Enrichment | `enricher.py` | Apollo.io org enrich + people search + bulk match |
 | Signals | `signals.py` | Website-keyword + news/expansion buying signals (optional LLM) |
-| Scoring | `scorer.py` | Deterministic 0–100 score (pure stdlib) |
+| Scoring | `scorer.py` | Deterministic 0–100 lead score + simple 0–7 qualification score (pure stdlib) |
 | Data Layer | `storage.py`, `models.py` | Pydantic validation, SQLite/JSON, dedup + merge |
 | Dashboard | `dashboard.html`, `serve.py` | Single-file UI with filters, sort, expand, CSV export |
 | Orchestrator | `main.py` | Runs the full pipeline |
@@ -44,10 +44,14 @@ Minimum required keys: `APOLLO_API_KEY`, plus the keys for your chosen
 `GOOGLE_CSE_ID`). See `.env.example` and Section 9 of the PRD for all variables.
 
 **Data sources (who supplies what):**
-- **Apollo.io** (`APOLLO_API_KEY`) — decision-maker contacts + firmographics (headcount, revenue).
+- **Apollo.io** (`APOLLO_API_KEY`, **required**) — decision-maker contacts + firmographics (headcount, revenue).
+- **Search provider** (Google CSE / SerpAPI / Brave, **required**) — company discovery, and news-signal fallback.
 - **Google Places API (New)** (`GOOGLE_PLACES_API_KEY`, recommended) — verified location (city/state/address/geo), business phone, website, type & rating. Skipped if unset.
 - **NewsAPI** (`NEWSAPI_API_KEY`, recommended) — news/expansion buying signals with exact publish dates + article URLs. Falls back to the search provider if unset.
-- **Search provider** (Google CSE / SerpAPI / Brave) — company discovery, and news-signal fallback.
+- **GST verification** (`GST_API_KEY`, optional) — confirms a company's GSTIN (extracted from its own site) is active; powers the "GST verified" qualification point.
+- **IndiaMART / JustDial** — used **only** as Google `site:` search targets (never scraped directly); the verified tag + GSTIN are harvested from search snippets.
+
+**Required to run:** `APOLLO_API_KEY` + your chosen search provider's keys. Everything else is optional — the agent runs without it and simply leaves those fields empty (and the corresponding qualification points unscored).
 
 ## Run
 
@@ -62,6 +66,22 @@ To preview the dashboard with bundled sample data (no API keys needed):
 mkdir -p leads && cp leads.sample.json leads/leads.json
 python serve.py       # open http://localhost:8000
 ```
+
+## Lead ranking (qualification score)
+
+Leads aren't a flat list — each gets a simple **0–7 qualification score** so your
+team can work top-down (this is the dashboard's default sort):
+
+| Signal | Points |
+|---|---|
+| Has a website | +1 |
+| Listed on IndiaMART with a verified tag | +1 |
+| Recent news or activity (signal within 90 days) | +2 |
+| GST verified and active | +2 |
+| Has a direct mobile / WhatsApp number | +1 |
+
+Each card shows a **Fit N/7** chip; expanding a card shows the per-criterion
+scorecard. The original 0–100 lead score is still available as a sort option.
 
 ## WhatsApp outreach (click-to-chat)
 
@@ -98,16 +118,17 @@ dashboard data export `leads.json`.
 pytest                # full suite (requires deps installed)
 ```
 
-The scoring engine and shared utilities are pure-stdlib and unit-tested in
-`tests/test_scorer.py` and `tests/test_utils.py`.
+The scoring engine, shared utilities, and Google Places parser are pure-stdlib
+and unit-tested in `tests/test_scorer.py`, `tests/test_utils.py`, and
+`tests/test_places.py` (23 tests).
 
 ## Compliance (Section 8)
 
 - **robots.txt** is checked before scraping any domain; disallowed domains are skipped.
-- **IndiaMart / TradeIndia** are never scraped directly — used only as search targets.
+- **IndiaMart / TradeIndia / JustDial** are never scraped directly — used only as Google search targets.
 - **PII** (emails, phones) is masked in all log output; stored data is unmasked for use.
 - A **3-second** minimum delay between requests to the same domain is enforced and not configurable lower.
-- All data stays local; only Apollo.io and the configured search provider receive requests.
+- All data stays local; only the configured enrichment APIs (Apollo, Google Places, NewsAPI, GST, search provider) receive requests.
 
 ## Notes / spec interpretations
 
