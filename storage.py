@@ -52,6 +52,18 @@ def _merge_lead_dicts(existing: dict, incoming: dict) -> dict:
     # enriched_at -> most recent; lead_score -> higher of the two.
     merged["enriched_at"] = _max_iso(existing.get("enriched_at"), incoming.get("enriched_at"))
     merged["lead_score"] = max(existing.get("lead_score", 0), incoming.get("lead_score", 0))
+
+    # Qualification fields: keep the stronger qualification, union directory data.
+    if incoming.get("qual_score", 0) >= existing.get("qual_score", 0):
+        merged["qual_score"] = incoming.get("qual_score", 0)
+        merged["qual_breakdown"] = incoming.get("qual_breakdown") or existing.get("qual_breakdown")
+    merged["indiamart_verified"] = bool(existing.get("indiamart_verified") or incoming.get("indiamart_verified"))
+    merged["directory_sources"] = sorted(
+        set(existing.get("directory_sources") or []) | set(incoming.get("directory_sources") or [])
+    )
+    # Prefer a verified GST record over an unverified/empty one.
+    e_gst, i_gst = existing.get("gst"), incoming.get("gst")
+    merged["gst"] = i_gst if (i_gst and i_gst.get("verified")) else (e_gst or i_gst)
     return merged
 
 

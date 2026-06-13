@@ -19,17 +19,36 @@ import httpx
 from config import ConfigError, load_config
 from discovery import QueryCounter, discover
 from enricher import Enricher, classify_company_type
+from gst import GstVerifier
 from models import SENIORITY_RANK
+from places import PlacesClient
 from providers import ProviderDeprecatedError, get_provider
-from scorer import compute_score
+from scorer import compute_qual_score, compute_score
 from scraper import Scraper
 from signals import SignalDetector
 from storage import LeadStore
-from utils import setup_logging
+from utils import is_indian_mobile, setup_logging
 
 
 def _sort_contacts(contacts: list[dict]) -> list[dict]:
     return sorted(contacts, key=lambda c: SENIORITY_RANK.get(c.get("seniority", "unknown"), 0), reverse=True)
+
+
+def _has_recent_activity(signals: list[dict], run_dt, days: int = 90) -> bool:
+    """True if any buying signal carries a date within `days` of the run."""
+    from datetime import datetime
+
+    for s in signals:
+        d = s.get("signal_date")
+        if not d:
+            continue
+        try:
+            dt = datetime.fromisoformat(d.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if 0 <= (run_dt - dt).days <= days:
+            return True
+    return False
 
 
 def _resolve_provider(cfg, client, logger):
@@ -88,33 +107,95 @@ async def run() -> None:
 
         # 4-6. Signals -> Scoring -> Storage
         detector = SignalDetector(cfg, provider, client)
+        places_client = PlacesClient(cfg, client)
+        gst_verifier = GstVerifier(cfg, client)
         stored = 0
         for scraped, enrich in zip(scraped_records, enriched_records):
-            signals = await detector.detect(
-                enrich.get("company_name") or scraped.get("company_name"),
-                scraped.get("raw_text", ""),
-                run_dt,
-            )
-            contacts = _sort_contacts(enrich.get("contacts", []))
-            best_contact = contacts[0] if contacts else None
-            score, breakdown = compute_score(best_contact, signals, run_dt)
-
             company_name = (
                 enrich.get("company_name") or scraped.get("company_name") or scraped["domain"]
             )
+            website = scraped.get("website") or f"https://{scraped['domain']}"
+
+            # Google Places: verified location + business details.
+            place = await places_client.enrich(company_name, (enrich.get("location") or {}).get("city"))
+
+            # Contacts from Apollo/scraping; add the Places business phone as a
+            # contact when none of the existing contacts carry a phone.
+            contacts = _sort_contacts(enrich.get("contacts", []))
+            if place.get("phone") and not any(c.get("phone") for c in contacts):
+                contacts.append({
+                    "name": None, "title": None, "seniority": "unknown",
+                    "email": None, "phone": place["phone"],
+                    "linkedin_url": None, "source": "places",
+                })
+                contacts = _sort_contacts(contacts)
+            best_contact = contacts[0] if contacts else None
+
+            signals = await detector.detect(
+                company_name, website, scraped.get("raw_text", ""), run_dt
+            )
+            score, breakdown = compute_score(best_contact, signals, run_dt)
+
+            # Location: prefer Google Places, fall back to Apollo.
+            aloc = enrich.get("location") or {}
+            location = {
+                "city": place.get("city") or aloc.get("city"),
+                "state": place.get("state") or aloc.get("state"),
+                "country": "India",
+                "formatted_address": place.get("formatted_address"),
+                "latitude": place.get("latitude"),
+                "longitude": place.get("longitude"),
+            }
+
+            # company_type: keyword classification, with the Places type as a fallback.
+            ctype = classify_company_type(
+                company_name, scraped.get("raw_text", ""), enrich.get("industry")
+            )
+            if ctype == "unknown" and place.get("company_type_hint", "unknown") != "unknown":
+                ctype = place["company_type_hint"]
+
+            place_obj = None
+            if place.get("place_id") or place.get("maps_url") or place.get("rating") is not None:
+                place_obj = {
+                    "rating": place.get("rating"),
+                    "user_rating_count": place.get("user_rating_count"),
+                    "business_status": place.get("business_status"),
+                    "types": place.get("place_types") or [],
+                    "maps_url": place.get("maps_url"),
+                    "place_id": place.get("place_id"),
+                }
+
+            # GST verification (extract from own site -> confirm active).
+            gst_obj = await gst_verifier.verify(scraped.get("gstin"))
+
+            # Simple 0-7 qualification score for top-down sales triage.
+            indiamart_verified = bool(scraped.get("indiamart_verified"))
+            directory_sources = scraped.get("directory_sources", [])
+            qual_score, qual_breakdown = compute_qual_score(
+                has_website=bool(website) and bool(scraped.get("raw_text")),
+                indiamart_verified=indiamart_verified,
+                recent_activity=_has_recent_activity(signals, run_dt),
+                gst_verified=bool(gst_obj and gst_obj.get("verified")),
+                has_mobile=any(is_indian_mobile(c.get("phone")) for c in contacts),
+            )
+
             lead = {
                 "company_name": company_name,
-                "company_type": classify_company_type(
-                    company_name, scraped.get("raw_text", ""), enrich.get("industry")
-                ),
-                "website": scraped.get("website") or f"https://{scraped['domain']}",
-                "location": enrich.get("location") or {"city": None, "state": None, "country": "India"},
+                "company_type": ctype,
+                "website": website,
+                "location": location,
                 "company_size": enrich.get("company_size")
                 or {"headcount_range": None, "revenue_band": None},
+                "place": place_obj,
                 "contacts": contacts,
                 "buying_signals": signals,
+                "gst": gst_obj,
+                "indiamart_verified": indiamart_verified,
+                "directory_sources": directory_sources,
                 "lead_score": score,
                 "score_breakdown": breakdown,
+                "qual_score": qual_score,
+                "qual_breakdown": qual_breakdown,
                 "discovery_source": scraped.get("discovery_source", ""),
                 "scraped_at": run_dt.isoformat(),
                 "enriched_at": enrich.get("enriched_at"),

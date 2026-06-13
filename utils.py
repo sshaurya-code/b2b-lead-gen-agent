@@ -24,7 +24,9 @@ if TYPE_CHECKING:  # httpx imported lazily so pure utils stay dependency-free
 # Domain normalisation (FR-03, FR-14)
 # --------------------------------------------------------------------------- #
 
-EXCLUDED_DIRECTORY_DOMAINS = ("indiamart.com", "tradeindia.com")
+# Directories used only as Google search targets — never scraped directly
+# (FR-12 / §8.6 for IndiaMart/TradeIndia; JustDial added for the same ToS reason).
+EXCLUDED_DIRECTORY_DOMAINS = ("indiamart.com", "tradeindia.com", "justdial.com")
 
 
 def normalize_domain(url: str) -> str:
@@ -51,6 +53,55 @@ def normalize_domain(url: str) -> str:
 def is_excluded_directory(domain: str) -> bool:
     """True if the domain is IndiaMart/TradeIndia, which must never be scraped (FR-12)."""
     return any(domain == d or domain.endswith("." + d) for d in EXCLUDED_DIRECTORY_DOMAINS)
+
+
+# --------------------------------------------------------------------------- #
+# Qualification-signal helpers (GSTIN, Indian mobile, directory markers)
+# --------------------------------------------------------------------------- #
+
+# Standard 15-char GSTIN: 2-digit state code, 5 letters, 4 digits, 1 letter,
+# 1 entity digit/letter, 'Z', 1 checksum digit/letter.
+_GSTIN_RE = re.compile(r"\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b")
+
+
+def extract_gstin(text: str | None) -> str | None:
+    """Return the first GSTIN found in text (e.g. from a company's own website)."""
+    if not text:
+        return None
+    m = _GSTIN_RE.search(text.upper())
+    return m.group(0) if m else None
+
+
+def is_indian_mobile(phone: str | None) -> bool:
+    """True if the number normalises to a 10-digit Indian mobile (starts 6-9)."""
+    if not phone:
+        return False
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return len(digits) == 10 and digits[0] in "6789"
+
+
+def directory_markers(text: str | None) -> tuple[bool, list[str]]:
+    """Detect directory listing + verified tag from text (website/links or a
+    Google result snippet — never from scraping the directory directly).
+
+    Returns ``(indiamart_verified, sources)`` where sources is a subset of
+    ["indiamart", "justdial"].
+    """
+    low = (text or "").lower()
+    sources: list[str] = []
+    if "indiamart.com" in low or "trustseal" in low:
+        sources.append("indiamart")
+    if "justdial.com" in low or "jdmart.com" in low:
+        sources.append("justdial")
+    verified = any(
+        marker in low
+        for marker in ("trustseal", "verified exporter", "verified supplier", "indiamart verified")
+    )
+    return verified, sources
 
 
 # --------------------------------------------------------------------------- #

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scorer import compute_score  # noqa: E402
+from scorer import compute_qual_score, compute_score  # noqa: E402
 
 RUN = datetime(2026, 6, 13, tzinfo=timezone.utc)
 
@@ -73,3 +73,31 @@ def test_score_capped_at_100():
 def test_future_dated_signal_treated_as_recent():
     future = [{"signal_date": (RUN + timedelta(days=5)).isoformat()}]
     assert compute_score(None, future, RUN)[1]["signal_recency"] == 40
+
+
+# --- qualification score (0-7) ---
+
+def test_qual_score_all_criteria():
+    total, bd = compute_qual_score(
+        has_website=True, indiamart_verified=True, recent_activity=True,
+        gst_verified=True, has_mobile=True,
+    )
+    assert total == 7
+    assert bd == {"has_website": 1, "indiamart_verified": 1, "recent_activity": 2,
+                  "gst_verified": 2, "has_mobile": 1}
+
+
+def test_qual_score_none():
+    total, bd = compute_qual_score(
+        has_website=False, indiamart_verified=False, recent_activity=False,
+        gst_verified=False, has_mobile=False,
+    )
+    assert total == 0 and all(v == 0 for v in bd.values())
+
+
+def test_qual_score_weights():
+    # recent activity and GST are worth 2 each
+    assert compute_qual_score(has_website=False, indiamart_verified=False,
+                              recent_activity=True, gst_verified=False, has_mobile=False)[0] == 2
+    assert compute_qual_score(has_website=True, indiamart_verified=True,
+                              recent_activity=False, gst_verified=False, has_mobile=True)[0] == 3

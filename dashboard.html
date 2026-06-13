@@ -125,6 +125,22 @@
   .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; text-transform: capitalize; white-space: nowrap; }
   .score-badge { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 8px; color: #06240f; flex-shrink: 0; }
+  .badge-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+  .qual-chip { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 8px; border: 1.5px solid; background: transparent; white-space: nowrap; }
+  .vbadge { background: rgba(34,197,94,.16); color: #4ade80; }
+  .vbadge.jd { background: rgba(59,130,246,.16); color: #7cc1ff; }
+
+  /* qualification scorecard (expand panel) */
+  .qual-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .qual-total { font-weight: 800; font-size: 14px; }
+  .qual-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; margin-bottom: 6px; }
+  .qual-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; padding: 3px 0; }
+  .qual-row .qual-check { width: 14px; text-align: center; }
+  .qual-row.met { color: var(--text); }
+  .qual-row.met .qual-check { color: var(--score-high); font-weight: 700; }
+  .qual-row.unmet { color: var(--text-faint); }
+  .qual-pts { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: 11px; }
+  .qual-note { font-size: 11px; color: var(--text-faint); margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
   .loc { color: var(--text-dim); font-size: 12px; margin-bottom: 10px; }
   .contact-line { font-size: 13px; margin-bottom: 8px; }
   .contact-line .nm { font-weight: 600; }
@@ -147,6 +163,31 @@
   .copy-btn:hover { color: var(--text); }
   .copy-btn.tooltip-err::after { content: attr(data-err); position: absolute; bottom: 120%; left: 0; background: var(--accent-coral); color: #2a0a0a; font-size: 10px; padding: 3px 6px; border-radius: 5px; white-space: nowrap; }
   .source-tag { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
+
+  /* scrollable filter group (location) */
+  .scroll-group { max-height: 180px; overflow-y: auto; }
+
+  /* signal provenance block (expand panel) */
+  .sig-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); margin: 14px 0 8px; }
+  .sig-item { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--accent-blue); border-radius: 8px; padding: 9px 11px; margin-bottom: 8px; }
+  .sig-item.news { border-left-color: var(--accent-amber); }
+  .sig-item-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+  .sig-type { font-size: 11px; font-weight: 700; color: var(--text); }
+  .sig-date { font-size: 11px; color: var(--text-faint); margin-left: auto; }
+  .conf { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; }
+  .conf-high { background: rgba(34,197,94,.18); color: #4ade80; }
+  .conf-medium { background: rgba(245,158,11,.18); color: #fbbf24; }
+  .conf-low { background: rgba(148,163,184,.18); color: #9aa3b2; }
+  .sig-text { font-size: 12px; color: var(--text-dim); font-style: italic; margin-bottom: 6px; }
+  .sig-src { font-size: 11px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .sig-src a { word-break: break-all; }
+
+  /* Google Places business details (expand panel) */
+  .place-block { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid #34a853; border-radius: 8px; padding: 9px 11px; }
+  .place-row { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .place-row:last-child { margin-bottom: 0; }
+  .place-rating { color: #fbbf24; font-weight: 600; }
+  .place-status { font-size: 10px; text-transform: capitalize; color: var(--text-faint); border: 1px solid var(--border-light); border-radius: 999px; padding: 1px 7px; }
 
   /* states */
   .state { text-align: center; color: var(--text-dim); padding: 80px 20px; }
@@ -178,6 +219,7 @@
     <div class="topbar-control">
       <label for="sortSelect">Sort</label>
       <select id="sortSelect" aria-label="Sort leads">
+        <option value="qual">Qualification (0–7)</option>
         <option value="score">Lead Score</option>
         <option value="recency">Signal Recency</option>
         <option value="name">Company Name (A–Z)</option>
@@ -212,13 +254,19 @@
 
       <h3>City / State</h3>
       <div class="autocomplete">
-        <input type="text" id="cityInput" placeholder="e.g. Mumbai" autocomplete="off" aria-label="Filter by city or state" />
+        <input type="text" id="cityInput" placeholder="Type to search city/state…" autocomplete="off" aria-label="Filter by city or state" />
         <div class="ac-list" id="cityList" style="display:none"></div>
       </div>
+
+      <h3>Location</h3>
+      <div class="filter-group scroll-group" id="locationFilters"></div>
 
       <h3>Quick Filters</h3>
       <div class="check-row"><input type="checkbox" id="hasEmail" /><label for="hasEmail">Has verified email</label></div>
       <div class="check-row"><input type="checkbox" id="hasSignals" /><label for="hasSignals">Has buying signals</label></div>
+      <div class="check-row"><input type="checkbox" id="hasMobile" /><label for="hasMobile">Has mobile / WhatsApp</label></div>
+      <div class="check-row"><input type="checkbox" id="hasIndiamart" /><label for="hasIndiamart">IndiaMART verified</label></div>
+      <div class="check-row"><input type="checkbox" id="hasGst" /><label for="hasGst">GST verified</label></div>
 
       <button class="clear-btn" id="clearFilters">Clear all filters</button>
     </aside>
@@ -287,6 +335,20 @@ function scoreColor(score) {
   if (score >= 70) return "var(--score-high)";
   if (score >= 40) return "var(--score-med)";
   return "var(--score-low)";
+}
+function qualColor(q) {
+  if (q >= 5) return "var(--score-high)";
+  if (q >= 3) return "var(--score-med)";
+  return "var(--score-low)";
+}
+function isIndianMobile(phone) {
+  let d = String(phone || "").replace(/\D/g, "");
+  if (d.length === 12 && d.startsWith("91")) d = d.slice(2);
+  else if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
+  return d.length === 10 && "6789".includes(d[0]);
+}
+function hasMobileNumber(lead) {
+  return (lead.contacts || []).some((c) => isIndianMobile(c.phone));
 }
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -363,6 +425,26 @@ function initFilters() {
     </div>`).join("");
   document.querySelectorAll(".type-cb").forEach((cb) => cb.addEventListener("change", applyFilters));
 
+  // Location multi-select (by city, label includes state where known).
+  const cityCounts = {};
+  const cityState = {};
+  ALL_LEADS.forEach((l) => {
+    const city = l.location?.city;
+    if (!city) return;
+    cityCounts[city] = (cityCounts[city] || 0) + 1;
+    if (l.location?.state) cityState[city] = l.location.state;
+  });
+  const cities = Object.keys(cityCounts).sort();
+  $("locationFilters").innerHTML = cities.length
+    ? cities.map((c, i) => `
+      <div class="check-row">
+        <input type="checkbox" class="loc-cb" id="loc-${i}" value="${esc(c)}" />
+        <label for="loc-${i}">${esc(c)}${cityState[c] ? `, ${esc(cityState[c])}` : ""}</label>
+        <span class="count">${cityCounts[c]}</span>
+      </div>`).join("")
+    : `<div class="ti" style="font-size:12px;color:var(--text-faint)">No locations in data</div>`;
+  document.querySelectorAll(".loc-cb").forEach((cb) => cb.addEventListener("change", applyFilters));
+
   const places = new Set();
   ALL_LEADS.forEach((l) => { if (l.location?.city) places.add(l.location.city); if (l.location?.state) places.add(l.location.state); });
   window.__places = [...places].sort();
@@ -374,8 +456,12 @@ function applyFilters() {
   const sMin = +$("scoreMin").value, sMax = +$("scoreMax").value;
   const recency = (document.querySelector('input[name="recency"]:checked') || {}).value || "all";
   const cityTerm = $("cityInput").value.trim().toLowerCase();
+  const selectedLocs = [...document.querySelectorAll(".loc-cb:checked")].map((c) => c.value);
   const needEmail = $("hasEmail").checked;
   const needSignals = $("hasSignals").checked;
+  const needMobile = $("hasMobile").checked;
+  const needIndiamart = $("hasIndiamart").checked;
+  const needGst = $("hasGst").checked;
   const search = ($("searchInput").value || "").trim().toLowerCase();
 
   FILTERED = ALL_LEADS.filter((l) => {
@@ -390,8 +476,12 @@ function applyFilters() {
       const hay = `${l.location?.city || ""} ${l.location?.state || ""}`.toLowerCase();
       if (!hay.includes(cityTerm)) return false;
     }
+    if (selectedLocs.length && !selectedLocs.includes(l.location?.city)) return false;
     if (needEmail) { const bc = bestContact(l); if (!bc || !bc.email) return false; }
     if (needSignals && !(l.buying_signals || []).length) return false;
+    if (needMobile && !hasMobileNumber(l)) return false;
+    if (needIndiamart && !l.indiamart_verified) return false;
+    if (needGst && !(l.gst && l.gst.verified)) return false;
     if (search && !(l.company_name || "").toLowerCase().includes(search)) return false;
     return true;
   });
@@ -403,7 +493,9 @@ function applyFilters() {
 
 function sortLeads() {
   const mode = $("sortSelect").value;
-  if (mode === "name") {
+  if (mode === "qual") {
+    FILTERED.sort((a, b) => (b.qual_score ?? 0) - (a.qual_score ?? 0) || (b.lead_score ?? 0) - (a.lead_score ?? 0));
+  } else if (mode === "name") {
     FILTERED.sort((a, b) => (a.company_name || "").localeCompare(b.company_name || ""));
   } else if (mode === "recency") {
     FILTERED.sort((a, b) => {
@@ -431,12 +523,15 @@ function cardHTML(lead) {
   const bc = bestContact(lead);
   const [bg, fg] = TYPE_COLORS[lead.company_type] || TYPE_COLORS.unknown;
   const score = lead.lead_score ?? 0;
-  const loc = [lead.location?.city, lead.location?.state].filter(Boolean).join(", ") || "Location unknown";
+  const loc = [lead.location?.city, lead.location?.state].filter(Boolean).join(", ")
+    || (lead.location?.formatted_address ? truncate(lead.location.formatted_address, 42) : "Location unknown");
   const sig = mostRecentSignal(lead);
   const sigCount = (lead.buying_signals || []).length;
   const hasEmail = bc && bc.email;
   const isOpen = expanded.has(lead.lead_id);
   const cardWa = bc ? waLink(lead, bc) : null;
+  const qual = lead.qual_score ?? 0;
+  const gstOk = lead.gst && lead.gst.verified;
 
   return `
   <div class="card" data-id="${esc(lead.lead_id)}">
@@ -444,10 +539,16 @@ function cardHTML(lead) {
       <div>
         <p class="company-name">${esc(lead.company_name || "Unknown company")}</p>
       </div>
-      <span class="score-badge" style="background:${scoreColor(score)}">${score}</span>
+      <div class="badge-stack">
+        <span class="qual-chip" style="border-color:${qualColor(qual)};color:${qualColor(qual)}" title="Qualification score (0–7) — drives the default ranking">Fit ${qual}/7</span>
+        <span class="score-badge" style="background:${scoreColor(score)}" title="Lead score (0–100)">${score}</span>
+      </div>
     </div>
     <div class="badges">
       <span class="badge" style="background:${bg};color:${fg}">${esc(lead.company_type || "unknown")}</span>
+      ${lead.indiamart_verified ? `<span class="badge vbadge">✓ IndiaMART</span>` : ""}
+      ${gstOk ? `<span class="badge vbadge">✓ GST</span>` : ""}
+      ${(lead.directory_sources || []).includes("justdial") ? `<span class="badge vbadge jd">JustDial</span>` : ""}
     </div>
     <div class="loc">📍 ${esc(loc)}</div>
     ${bc ? `<div class="contact-line"><span class="nm">${esc(bc.name || "—")}</span>
@@ -468,9 +569,8 @@ function cardHTML(lead) {
 
 function expandHTML(lead) {
   const contacts = sortContacts(lead.contacts);
-  if (!contacts.length) return `<div class="expand"><div class="ti">No contacts available.</div></div>`;
-  return `<div class="expand" onclick="event.stopPropagation()">
-    ${contacts.map((c, i) => `
+  const contactsPart = contacts.length
+    ? contacts.map((c) => `
       <div class="contact-card">
         <div class="row1">
           <span class="cc-name">${esc(c.name || "Unnamed contact")}</span>
@@ -484,8 +584,105 @@ function expandHTML(lead) {
           <button class="copy-btn" data-copy="${esc(c.phone)}">Copy</button>
           ${waLink(lead, c) ? `<a class="wa-btn" href="${esc(waLink(lead, c))}" target="_blank" rel="noopener" title="Opens WhatsApp with a pre-filled message — review before sending">WhatsApp</a>` : ""}</div>` : ""}
         ${c.linkedin_url ? `<div class="contact-detail">in <a href="${esc(c.linkedin_url)}" target="_blank" rel="noopener">LinkedIn profile</a></div>` : ""}
-      </div>`).join("")}
+      </div>`).join("")
+    : `<div class="ti">No contacts available.</div>`;
+  return `<div class="expand" onclick="event.stopPropagation()">
+    ${qualHTML(lead)}
+    <div class="sig-head">Contacts</div>
+    ${contactsPart}
+    ${signalsHTML(lead)}
+    ${placeHTML(lead)}
   </div>`;
+}
+
+// Qualification scorecard: shows each of the 5 criteria, met/unmet, with points.
+function qualHTML(lead) {
+  const b = lead.qual_breakdown || {};
+  const q = lead.qual_score ?? 0;
+  const gst = lead.gst || {};
+  const rows = [
+    ["Has a website", b.has_website, 1],
+    ["IndiaMART verified", b.indiamart_verified, 1],
+    ["Recent news / activity", b.recent_activity, 2],
+    ["GST verified & active", b.gst_verified, 2],
+    ["Direct mobile / WhatsApp", b.has_mobile, 1],
+  ];
+  const gstNote = gst.gstin
+    ? `<div class="qual-note">GSTIN ${esc(gst.gstin)}${gst.status ? ` · ${esc(gst.status)}` : (gst.verified ? "" : " · found, not verified")}</div>`
+    : "";
+  const dirNote = (lead.directory_sources || []).length
+    ? `<div class="qual-note">Listed on: ${esc((lead.directory_sources || []).join(", "))}</div>`
+    : "";
+  return `<div class="qual-head">Qualification score <span class="qual-total" style="color:${qualColor(q)}">${q}/7</span></div>
+    <div class="qual-card">
+      ${rows.map(([label, pts, max]) => `
+        <div class="qual-row ${pts ? "met" : "unmet"}">
+          <span class="qual-check">${pts ? "✓" : "○"}</span>
+          <span class="qual-label">${label}</span>
+          <span class="qual-pts">${pts ? "+" + pts : "0"}/${max}</span>
+        </div>`).join("")}
+      ${gstNote}${dirNote}
+    </div>`;
+}
+
+// Google Places business details: verified address, Maps link, rating, status.
+function placeHTML(lead) {
+  const p = lead.place || {};
+  const loc = lead.location || {};
+  const addr = loc.formatted_address;
+  const hasRating = p.rating != null;
+  const status = p.business_status ? p.business_status.replace(/_/g, " ").toLowerCase() : "";
+  if (!addr && !p.maps_url && !hasRating && !status) return "";
+  const stars = hasRating ? `★ ${p.rating}${p.user_rating_count ? ` (${p.user_rating_count} reviews)` : ""}` : "";
+  return `<div class="sig-head">Business details · Google Places</div>
+    <div class="place-block">
+      ${addr ? `<div class="place-row">📍 ${esc(addr)}</div>` : ""}
+      <div class="place-row">
+        ${p.maps_url ? `<a href="${esc(p.maps_url)}" target="_blank" rel="noopener">View on Google Maps ↗</a>` : ""}
+        ${hasRating ? `<span class="place-rating">${esc(stars)}</span>` : ""}
+        ${status ? `<span class="place-status">${esc(status)}</span>` : ""}
+      </div>
+    </div>`;
+}
+
+// Buying-signal provenance: shows each signal, its confidence/date, and exactly
+// where it came from (the scraped website page, or the news/search result + query).
+function signalsHTML(lead) {
+  const sigs = lead.buying_signals || [];
+  if (!sigs.length) return `<div class="sig-head">Buying signals</div><div class="ti">No signals detected for this lead.</div>`;
+  // Show most-recent / highest-confidence first.
+  const order = { high: 3, medium: 2, low: 1 };
+  const sorted = [...sigs].sort((a, b) => {
+    const da = a.signal_date ? new Date(a.signal_date).getTime() : 0;
+    const db = b.signal_date ? new Date(b.signal_date).getTime() : 0;
+    if (db !== da) return db - da;
+    return (order[b.confidence] || 0) - (order[a.confidence] || 0);
+  });
+  return `<div class="sig-head">Buying signals (${sigs.length})</div>
+    ${sorted.map((s) => {
+      const isNews = s.type === "news_expansion";
+      const typeLabel = isNews ? "📰 News / expansion" : "🌐 Website mention";
+      const conf = s.confidence || "low";
+      const date = s.signal_date ? new Date(s.signal_date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "No date";
+      let src;
+      if (s.source_url) {
+        const label = isNews ? "View source article" : "View page";
+        src = `<span>Source:</span> <a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(truncate(s.source_url, 48))} ↗</a>`
+          + (isNews && s.source_query ? `<br><span>Found via search:</span> <span style="color:var(--text-dim)">"${esc(s.source_query)}"</span>` : "");
+      } else {
+        src = isNews ? `<span>Source: news search${s.source_query ? ` — "${esc(s.source_query)}"` : ""}</span>`
+                     : `<span>Source: scraped from the company website</span>`;
+      }
+      return `<div class="sig-item ${isNews ? "news" : "web"}">
+        <div class="sig-item-top">
+          <span class="sig-type">${typeLabel}</span>
+          <span class="conf conf-${conf}">${conf}</span>
+          <span class="sig-date">${esc(date)}</span>
+        </div>
+        <div class="sig-text">"${esc(s.text_snippet)}"</div>
+        <div class="sig-src">${src}</div>
+      </div>`;
+    }).join("")}`;
 }
 
 // ---- Summary bar -------------------------------------------------------- //
@@ -595,12 +792,17 @@ function setup() {
   $("exportBtn").addEventListener("click", exportCSV);
   $("hasEmail").addEventListener("change", applyFilters);
   $("hasSignals").addEventListener("change", applyFilters);
+  $("hasMobile").addEventListener("change", applyFilters);
+  $("hasIndiamart").addEventListener("change", applyFilters);
+  $("hasGst").addEventListener("change", applyFilters);
   document.querySelectorAll('input[name="recency"]').forEach((r) => r.addEventListener("change", applyFilters));
   $("clearFilters").addEventListener("click", () => {
     document.querySelectorAll(".type-cb").forEach((c) => (c.checked = false));
+    document.querySelectorAll(".loc-cb").forEach((c) => (c.checked = false));
     $("scoreMin").value = 0; $("scoreMax").value = 100;
     $("rec-all").checked = true; $("cityInput").value = "";
     $("hasEmail").checked = false; $("hasSignals").checked = false; $("searchInput").value = "";
+    $("hasMobile").checked = false; $("hasIndiamart").checked = false; $("hasGst").checked = false;
     setupRange(); applyFilters();
   });
   $("menuToggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));

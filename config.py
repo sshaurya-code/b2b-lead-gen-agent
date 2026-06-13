@@ -12,7 +12,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # env vars still read from the environment without python-dotenv
+    def load_dotenv():
+        return False
 
 ACCEPTED_SEARCH_PROVIDERS = ("google_cse", "serpapi", "brave")
 ACCEPTED_STORAGE_BACKENDS = ("sqlite", "json")
@@ -42,6 +46,10 @@ def _get_int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Config:
     apollo_api_key: str | None
+    google_places_api_key: str | None
+    newsapi_api_key: str | None
+    gst_api_key: str | None
+    gst_api_url: str
     search_provider: str
     google_cse_api_key: str | None
     google_cse_id: str | None
@@ -102,6 +110,10 @@ def load_config() -> Config:
 
     cfg = Config(
         apollo_api_key=os.getenv("APOLLO_API_KEY"),
+        google_places_api_key=os.getenv("GOOGLE_PLACES_API_KEY"),
+        newsapi_api_key=os.getenv("NEWSAPI_API_KEY"),
+        gst_api_key=os.getenv("GST_API_KEY"),
+        gst_api_url=os.getenv("GST_API_URL") or "https://appyflow.in/api/verifyGST",
         search_provider=search_provider,
         google_cse_api_key=os.getenv("GOOGLE_CSE_API_KEY"),
         google_cse_id=os.getenv("GOOGLE_CSE_ID"),

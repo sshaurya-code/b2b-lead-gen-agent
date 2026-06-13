@@ -8,7 +8,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils import (  # noqa: E402
     PIIRedactionFilter,
+    directory_markers,
+    extract_gstin,
     is_excluded_directory,
+    is_indian_mobile,
     normalize_domain,
     redact_pii,
 )
@@ -49,3 +52,27 @@ def test_pii_filter_masks_log_record():
                             "contact %s", ("buyer@firm.in",), None)
     f.filter(rec)
     assert rec.args == ("[email redacted]",)
+
+
+def test_extract_gstin():
+    assert extract_gstin("Our GSTIN: 24ABCDE1234F1Z5 thanks") == "24ABCDE1234F1Z5"
+    assert extract_gstin("gst 27aabcu9603r1zm here") == "27AABCU9603R1ZM"
+    assert extract_gstin("no gst here") is None
+
+
+def test_is_indian_mobile():
+    assert is_indian_mobile("+91 98765 43210")
+    assert is_indian_mobile("9876543210")
+    assert is_indian_mobile("098765 43210")
+    assert not is_indian_mobile("+91 33 2233 4455")  # landline (starts 3)
+    assert not is_indian_mobile("12345")
+    assert not is_indian_mobile(None)
+
+
+def test_directory_markers():
+    v, src = directory_markers("Find us on IndiaMART — TrustSEAL Verified exporter")
+    assert v is True and "indiamart" in src
+    v2, src2 = directory_markers("Listed on justdial.com")
+    assert v2 is False and "justdial" in src2
+    v3, src3 = directory_markers("just a normal site")
+    assert v3 is False and src3 == []

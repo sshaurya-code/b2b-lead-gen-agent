@@ -107,3 +107,29 @@ def compute_score(
     }
     total = min(sum(breakdown.values()), 100)  # FR-19: cap at 100
     return total, breakdown
+
+
+def compute_qual_score(
+    *,
+    has_website: bool,
+    indiamart_verified: bool,
+    recent_activity: bool,
+    gst_verified: bool,
+    has_mobile: bool,
+) -> tuple[int, dict]:
+    """Simple, transparent 0-7 qualification score for top-down sales triage.
+
+    Has a website                        -> +1
+    Listed on IndiaMART, verified tag    -> +1
+    Recent news or activity              -> +2
+    GST verified and active              -> +2
+    Has a direct mobile/WhatsApp number  -> +1
+    """
+    breakdown = {
+        "has_website": 1 if has_website else 0,
+        "indiamart_verified": 1 if indiamart_verified else 0,
+        "recent_activity": 2 if recent_activity else 0,
+        "gst_verified": 2 if gst_verified else 0,
+        "has_mobile": 1 if has_mobile else 0,
+    }
+    return sum(breakdown.values()), breakdown

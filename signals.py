@@ -97,15 +97,17 @@ class SignalDetector:
         self.provider = provider
         self.http_client = http_client
 
-    async def detect(self, company_name: str | None, raw_text: str, run_dt: datetime) -> list[dict]:
-        signals = self._website_keyword_signals(raw_text)
+    async def detect(
+        self, company_name: str | None, website: str | None, raw_text: str, run_dt: datetime
+    ) -> list[dict]:
+        signals = self._website_keyword_signals(raw_text, website)
         if company_name:
             signals.extend(await self._news_signals(company_name, run_dt))
         if self.cfg.llm_signal_scoring:
             await self._apply_llm_scoring(signals, raw_text)
         return signals
 
-    def _website_keyword_signals(self, raw_text: str) -> list[dict]:
+    def _website_keyword_signals(self, raw_text: str, website: str | None) -> list[dict]:
         if not raw_text:
             return []
         low = raw_text.lower()
@@ -123,6 +125,8 @@ class SignalDetector:
                 "text_snippet": raw_text[start:end].strip(),
                 "signal_date": None,  # website text carries no date
                 "confidence": "medium",  # finalised below once count is known
+                "source_url": website,  # the company website it was scraped from
+                "source_query": None,
             })
         # FR-16: high if >=3 distinct keyword matches, else medium.
         confidence = "high" if matched_keywords >= 3 else "medium"
@@ -131,6 +135,10 @@ class SignalDetector:
         return matches
 
     async def _news_signals(self, company_name: str, run_dt: datetime) -> list[dict]:
+        # Prefer NewsAPI when configured (exact dates + article URLs); else fall
+        # back to the configured SEARCH_PROVIDER.
+        if self.cfg.newsapi_api_key:
+            return await self._news_signals_via_newsapi(company_name, run_dt)
         query = (
             f'"{company_name}" expansion OR "new project" OR tender India '
             f"2024 OR 2025 OR 2026"
@@ -156,6 +164,44 @@ class SignalDetector:
                 "text_snippet": text_snippet,
                 "signal_date": signal_date,
                 "confidence": _news_confidence(signal_date, run_dt),
+                "source_url": r.get("url"),  # the news/search result it came from
+                "source_query": query,
+            })
+        return signals
+
+    async def _news_signals_via_newsapi(self, company_name: str, run_dt: datetime) -> list[dict]:
+        """News/expansion signals from NewsAPI (/v2/everything). Exact publish dates."""
+        query = f'"{company_name}" AND (expansion OR tender OR "new project" OR project OR factory)'
+        params = {
+            "q": query,
+            "language": "en",
+            "sortBy": "publishedAt",
+            "pageSize": 5,
+            "apiKey": self.cfg.newsapi_api_key,
+        }
+        try:
+            resp = await self.http_client.get(
+                "https://newsapi.org/v2/everything", params=params, timeout=10.0
+            )
+        except Exception as exc:  # noqa: BLE001 - news is best-effort
+            logger.warning("NewsAPI request failed for %s: %s", company_name, exc)
+            return []
+        if resp.status_code != 200:
+            logger.error("NewsAPI HTTP %s: %s", resp.status_code, resp.text[:200])
+            return []
+        articles = resp.json().get("articles", []) or []
+        signals: list[dict] = []
+        for a in articles:
+            published = a.get("publishedAt")  # already ISO8601 (e.g. 2026-05-12T08:00:00Z)
+            text = a.get("title") or a.get("description") or ""
+            source = (a.get("source") or {}).get("name") or "NewsAPI"
+            signals.append({
+                "type": "news_expansion",
+                "text_snippet": text[: 2 * SNIPPET_RADIUS].strip(),
+                "signal_date": published,
+                "confidence": _news_confidence(published, run_dt),
+                "source_url": a.get("url"),
+                "source_query": f"NewsAPI: {query} (via {source})",
             })
         return signals
 

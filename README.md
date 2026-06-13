@@ -43,6 +43,12 @@ Minimum required keys: `APOLLO_API_KEY`, plus the keys for your chosen
 `SEARCH_PROVIDER` (default `google_cse` needs `GOOGLE_CSE_API_KEY` +
 `GOOGLE_CSE_ID`). See `.env.example` and Section 9 of the PRD for all variables.
 
+**Data sources (who supplies what):**
+- **Apollo.io** (`APOLLO_API_KEY`) — decision-maker contacts + firmographics (headcount, revenue).
+- **Google Places API (New)** (`GOOGLE_PLACES_API_KEY`, recommended) — verified location (city/state/address/geo), business phone, website, type & rating. Skipped if unset.
+- **NewsAPI** (`NEWSAPI_API_KEY`, recommended) — news/expansion buying signals with exact publish dates + article URLs. Falls back to the search provider if unset.
+- **Search provider** (Google CSE / SerpAPI / Brave) — company discovery, and news-signal fallback.
+
 ## Run
 
 ```bash

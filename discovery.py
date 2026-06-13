@@ -15,16 +15,19 @@ from pathlib import Path
 
 from config import Config
 from providers import QuotaExhaustedError, SearchProvider
-from utils import is_excluded_directory, normalize_domain
+from utils import directory_markers, extract_gstin, is_excluded_directory, normalize_domain
 
 logger = logging.getLogger(__name__)
 
 # Discovery query templates (Section 3a, Table 5).
 QUERY_TEMPLATES: list[str] = [
-    # Directory-scoped (indiamart/tradeindia used only as search targets — FR-12/8.6)
+    # Directory-scoped (indiamart/tradeindia/justdial used only as search
+    # targets — FR-12/8.6; never scraped directly).
     '"aluminium distributor" India site:indiamart.com OR site:tradeindia.com',
     '"hardware supplier" India site:indiamart.com OR site:tradeindia.com',
     '"aluminium fabricator" India site:indiamart.com OR site:tradeindia.com',
+    '"aluminium" OR "hardware" supplier India site:justdial.com',
+    '"hardware store" OR "aluminium dealer" India site:justdial.com',
     # City-level
     '"aluminium distributor" Mumbai India contact',
     '"hardware wholesaler" Delhi India supplier',
@@ -141,11 +144,17 @@ async def discover(
             if domain in candidates:  # FR-04: dedup, no downstream quota spend
                 logger.debug("Duplicate domain skipped: %s", domain)
                 continue
+            # Harvest verified-tag / GSTIN from the Google snippet (compliant —
+            # no direct directory scraping).
+            verified, sources = directory_markers(r["snippet"])
             candidates[domain] = {
                 "domain": domain,
                 "url": r["url"],
                 "snippet": r["snippet"],
                 "discovery_source": r["query"],
+                "indiamart_verified": verified,
+                "directory_sources": sources,
+                "gstin": extract_gstin(r["snippet"]),
             }
 
     logger.info("Discovery complete: %d unique candidate domains.", len(candidates))

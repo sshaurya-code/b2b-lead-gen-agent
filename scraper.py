@@ -25,7 +25,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from config import Config
-from utils import is_excluded_directory
+from utils import directory_markers, extract_gstin, is_excluded_directory
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +198,11 @@ class Scraper:
             "scrape_blocked": False,
             "discovery_source": candidate.get("discovery_source", ""),
             "website": f"https://{domain}",
+            # Qualification hints carried from discovery (Google snippet); merged
+            # with own-website detection after scraping.
+            "indiamart_verified": bool(candidate.get("indiamart_verified")),
+            "directory_sources": list(candidate.get("directory_sources", [])),
+            "gstin": candidate.get("gstin"),
         }
 
         proxy = self.proxy_rotator.next()
@@ -258,6 +263,13 @@ class Scraper:
         # NFR-06: a proxy connection failure marks the proxy dead for the run.
         data["phones"] = list(dict.fromkeys(data["phones"]))
         data["emails"] = list(dict.fromkeys(data["emails"]))
+
+        # Qualification signals from the company's own site (compliant): merge a
+        # GSTIN and any IndiaMART/JustDial verified markers found in its text.
+        data["gstin"] = data["gstin"] or extract_gstin(data["raw_text"])
+        site_verified, site_sources = directory_markers(data["raw_text"])
+        data["indiamart_verified"] = data["indiamart_verified"] or site_verified
+        data["directory_sources"] = sorted(set(data["directory_sources"]) | set(site_sources))
         return data
 
     async def _apply_stealth(self, context) -> None:

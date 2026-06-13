@@ -48,6 +48,7 @@ class ContactSource(str, Enum):
     apollo = "apollo"
     scraped = "scraped"
     both = "both"
+    places = "places"  # business phone resolved via Google Places (see places.py)
 
 
 class SignalType(str, Enum):
@@ -65,11 +66,25 @@ class Location(BaseModel):
     city: str | None = None
     state: str | None = None
     country: str = "India"  # FR: hardcoded India
+    formatted_address: str | None = None  # Google Places formatted address
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class CompanySize(BaseModel):
     headcount_range: str | None = None  # Apollo estimated_num_employees
     revenue_band: str | None = None  # Apollo annual_revenue_printed
+
+
+class Place(BaseModel):
+    """Business details resolved via Google Places (location's companion data)."""
+
+    rating: float | None = None
+    user_rating_count: int | None = None
+    business_status: str | None = None  # OPERATIONAL / CLOSED_TEMPORARILY / ...
+    types: list[str] = []
+    maps_url: str | None = None
+    place_id: str | None = None
 
 
 class Contact(BaseModel):
@@ -87,6 +102,8 @@ class BuyingSignal(BaseModel):
     text_snippet: str
     signal_date: str | None = None  # ISO8601 or null
     confidence: Confidence
+    source_url: str | None = None  # where the signal was found (website page or news result)
+    source_query: str | None = None  # the search query that surfaced a news signal
 
 
 class ScoreBreakdown(BaseModel):
@@ -96,6 +113,23 @@ class ScoreBreakdown(BaseModel):
     persona_seniority: int = 0
 
 
+class Gst(BaseModel):
+    gstin: str | None = None
+    status: str | None = None  # e.g. "Active", "Cancelled"
+    verified: bool = False  # confirmed active via GST verification API
+    legal_name: str | None = None
+
+
+class QualBreakdown(BaseModel):
+    """Simple 0-7 qualification scorecard (points per criterion)."""
+
+    has_website: int = 0          # +1
+    indiamart_verified: int = 0   # +1
+    recent_activity: int = 0      # +2
+    gst_verified: int = 0         # +2
+    has_mobile: int = 0           # +1
+
+
 class Lead(BaseModel):
     lead_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     company_name: str
@@ -103,10 +137,16 @@ class Lead(BaseModel):
     website: str
     location: Location = Field(default_factory=Location)
     company_size: CompanySize = Field(default_factory=CompanySize)
+    place: Place | None = None
     contacts: list[Contact] = Field(default_factory=list)
     buying_signals: list[BuyingSignal] = Field(default_factory=list)
+    gst: Gst | None = None
+    indiamart_verified: bool = False
+    directory_sources: list[str] = Field(default_factory=list)  # e.g. ["indiamart", "justdial"]
     lead_score: int = 0
     score_breakdown: ScoreBreakdown = Field(default_factory=ScoreBreakdown)
+    qual_score: int = 0  # simple 0-7 qualification score (see scorer.compute_qual_score)
+    qual_breakdown: QualBreakdown = Field(default_factory=QualBreakdown)
     discovery_source: str = ""
     scraped_at: str
     enriched_at: str | None = None
