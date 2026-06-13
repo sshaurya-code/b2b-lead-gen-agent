@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Agent output (leads.db, leads.json, agent.log, query_counter.json) — FR-34
+leads/
+*.db
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.DS_Store
+.playwright-mcp
