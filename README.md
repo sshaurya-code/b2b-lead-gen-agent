@@ -1,5 +1,7 @@
 # B2B Lead Generation AI Agent — India Hardware & Aluminium Trade
 
+> **New here? → [QUICKSTART.md](QUICKSTART.md)** — clone, add your own API keys, and run it locally in a few minutes.
+
 An autonomous, local Python pipeline that **discovers → scrapes → enriches →
 detects buying signals → scores → stores → and surfaces** high-quality B2B leads
 in the India hardware and aluminium materials trade, then renders them in a
