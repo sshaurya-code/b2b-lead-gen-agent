@@ -391,7 +391,12 @@ function waLink(lead, contact) {
 // ---- Data loading ------------------------------------------------------- //
 async function loadData() {
   let data = null;
-  for (const url of ["leads.json", "/api/leads"]) {
+  // Data injected by an embedding host (e.g. the Streamlit app) takes priority
+  // over fetching, so the dashboard works inside a component iframe.
+  if (Array.isArray(window.__LEADS)) {
+    data = window.__LEADS;
+  }
+  for (const url of (data ? [] : ["leads.json", "/api/leads"])) {
     try {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) continue;

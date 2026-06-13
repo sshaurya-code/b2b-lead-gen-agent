@@ -1,0 +1,4 @@
+# Optional UI layer — only needed for the Streamlit control panel (app.py).
+# Install with: pip install -r requirements-app.txt
+# The core pipeline (main.py) and dashboard do not require this.
+streamlit==1.39.0

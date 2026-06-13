@@ -24,13 +24,31 @@ Discovery → Scraping → Enrichment → Signal Detection → Scoring → Data 
 | Data Layer | `storage.py`, `models.py` | Pydantic validation, SQLite/JSON, dedup + merge |
 | Dashboard | `dashboard.html`, `serve.py` | Single-file UI with filters, sort, expand, CSV export |
 | Orchestrator | `main.py` | Runs the full pipeline |
+| UI (optional) | `app.py` | Streamlit control panel: configure keys, run, view results |
 
 ## Requirements
 
 - **Python 3.11+** (per PRD). Pinned dependencies are in `requirements.txt`.
 - A `.env` file with your API keys (copy from `.env.example`).
 
-## Setup
+## Easiest start — Streamlit UI
+
+For a no-terminal experience, use the bundled Streamlit control panel: paste API
+keys into a form, click **Run pipeline**, watch live logs, and browse results in
+the embedded dashboard.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-app.txt
+playwright install chromium
+streamlit run app.py                 # opens http://localhost:8501
+```
+
+It runs locally (Playwright can't run on Streamlit's hosted cloud, and you'd be
+sharing keys/quota — so each user runs their own). The CLI below remains fully
+usable and is better for unattended/scheduled runs.
+
+## Setup (CLI)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
